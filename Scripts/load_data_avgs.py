@@ -16,14 +16,14 @@ def appendPath(PATH, ORGAN, TYPE):
     return PATH + "/" + ORGAN + "/" + TYPE
 
 
-def parseData(IZZIVI, SRC_PATH, TYPE):
+def parseData(IZZIVI, SRC_PATH, TYPE, NOOFSEGS):
     CASES = [getListOfMasks(appendPath(SRC_PATH, x, TYPE)) for x in izzivi]
     NO_OF_SEGS = {'brain-growth': 1,
                   'brain-tumor': 3,
                   'kidney': 1,
-                  'prostate': 2}
+                  'prostate': 2} # Stevilo taskov za dani primer
     d = {}
-    for IZZIV in IZZIVI:
+    for IZZIV in IZZIVI: # create dicts
         d[IZZIV] = {}
     for i in range(len(CASES)):
         IZZIV = IZZIVI[i]
@@ -66,6 +66,24 @@ def parseIdxToString(idx, length=3):
     tmpArr.append(str(idx))
     return ''.join(tmpArr)
 
+def createAverageMasks(srcs, SOURCE, IZZIV, TYPE, CASE):
+    oMasks = []
+    mask = sitk.GetArrayFromImage(sitk.ReadImage(getPath(SOURCE, IZZIV, TYPE, CASE, srcs[0])))
+    for i in range(1, len(srcs)):
+        mask += sitk.GetArrayFromImage(sitk.ReadImage(getPath(SOURCE, IZZIV, TYPE, CASE, srcs[i])))
+    mask = np.asarray(mask, dtype=np.float32)
+    for i in range(len(srcs)):
+        tmp = np.asarray(mask >= i + 1, np.float32)
+        if len(tmp.shape) < 3:
+            tmp.reshape(1, tmp.shape[0], tmp.shape[1])
+        oMasks.append(np.asarray(mask >= i + 1, np.float32))
+        # returna maske, kjer je 0-ti element maska z najmanjšo gotovostjo, torej podrocja, kjer se je markiral zgolj en izmed oznacevalcev
+    return oMasks
+
+def verifyDimensions(iImage: np.ndarray):
+    if len(iImage.shape) < 3:
+        iImage.reshape(1,iImage.shape[0], iImage.shape[1])
+    return iImage
 
 def makeNNUnetStructure(data, SOURCE, DEST, TYPE):
     mapNames = {'brain-growth': 'BRGR', 'brain-tumor': 'BRTU', 'kidney': 'KD', 'prostate': 'PR'}
@@ -77,21 +95,19 @@ def makeNNUnetStructure(data, SOURCE, DEST, TYPE):
             for CASE in data[IZZIV][TYPE].keys():
                 srcImage = sitk.ReadImage(
                     getPath(SOURCE, IZZIV, TYPE, CASE, 'image.nii.gz'))
-                for SEGMENTATION in data[IZZIV][TYPE][CASE]['TASKS'][TASK]:
+                np_masks = createAverageMasks(data[IZZIV][TYPE][CASE]['TASKS'][TASK], SOURCE, IZZIV, TYPE, CASE)
+                for SEGMENTATION in range(len(data[IZZIV][TYPE][CASE]['TASKS'][TASK])):
                     tmp = sitk.GetArrayFromImage(srcImage)
                     if (len(tmp.shape) > 3) and tmp.shape[0] > 1:
                         print("Error at image ", getPath(SOURCE, IZZIV, TYPE, CASE, 'image.nii.gz'))
-                    if(len(tmp.shape) < 3):
+                    if len(tmp.shape) < 3:
                         tmp = tmp.reshape(1, tmp.shape[0], tmp.shape[1])
                     srcImage = sitk.GetImageFromArray(tmp)
                     sitk.WriteImage(srcImage,
                                     getPath(DEST, 'Task' + str(taskIdx) + '_' + mapNames[IZZIV] + str(noOfTasks),
                                             'imagesTr', mapNames[IZZIV] + str(noOfTasks) + '_' + parseIdxToString(
                                             imageIdx) + '_0000.nii.gz'))
-                    srcSeg = sitk.ReadImage(
-                        getPath(SOURCE, IZZIV, TYPE, CASE, SEGMENTATION)
-                    )
-                    tmp = sitk.GetArrayFromImage(srcSeg)
+                    tmp = np_masks[SEGMENTATION]
                     if (len(tmp.shape) < 3):
                         tmp = tmp.reshape(1, tmp.shape[0], tmp.shape[1])
                     srcSeg = sitk.GetImageFromArray(tmp)
@@ -103,7 +119,7 @@ def makeNNUnetStructure(data, SOURCE, DEST, TYPE):
             noOfTasks += 1
             taskIdx += 1
 
-def generarateJSON(task_name, desc, TASK_SOURCE, LABEL):
+def generarateJSON(task_name, desc, TASK_SOURCE, LABEL, numOfSegs):
     overwrite_json_file = True  # make it True if you want to overwrite the dataset.json file in Task_folder
     json_file_exist = False
     json_dict = OrderedDict()
@@ -119,10 +135,12 @@ def generarateJSON(task_name, desc, TASK_SOURCE, LABEL):
         "0": "MRI"
     }
     # labels+1 should be mentioned for all the labels in the dataset
+
     json_dict['labels'] = {
-        "0": "background",
-        "1": LABEL,
+        "0": "background"
     }
+    for i in range(numOfSegs):
+        json_dict['labels'][str(i+1)] = 'certainty' + str(i+1)
 
     train_label_dir = TASK_SOURCE + '/imagesTr'
     test_dir = TASK_SOURCE + '/imagesTs'
@@ -146,12 +164,16 @@ data_paths = {'brain-growth':{},
              'kidney': {},
              'prostate': {}}
 
-izzivi = ['brain-growth', 'brain-tumor', 'kidney', 'prostate']
-data = parseData(izzivi, '../Data/training_data_v2', 'Training')
+izzivi = ['brain-growth', 'brain-tumor', 'kidney', 'prostate'] # izzivi
+numOfSegs = [7, 3, 3, 3, 3, 6, 6] # Stevilo segmentacij za posamezen task
+desc = ['brain-growth AMS', 'brain-tumor 1 AMS', 'brain-tumor 2 AMS', 'brain-tumor 3 AMS', 'kidney AMS', 'prostate 1 AMS', 'prostate 2 AMS'] # Opis taskov
+data = parseData(izzivi, '../Data/training_data_v2', 'Training', numOfSegs)
+print()
 #data = saveAverageMasks(data, '../data/training_data_v2', 'Training')
-makeNNUnetStructure(data, '../Data/training_data_v2', '../Data/nnUNet', 'Training')
+#makeNNUnetStructure(data, '../Data/training_data_v2', '../Data/nnUNet', 'Training')
 
-desc = ['brain-growth AMS', 'brain-tumor 1 AMS', 'brain-tumor 2 AMS', 'brain-tumor 3 AMS', 'kidney AMS', 'prostate 1 AMS', 'prostate 2 AMS']
+
 
 for id, task in enumerate(os.listdir('../Data/nnUNet')):
-    generarateJSON(task, desc[id], '../Data/nnUNet/' + task, task[task.find('_')+1:])
+    if task == "Task101_BRGR1":
+        generarateJSON(task, desc[id], '../Data/nnUNet/' + task, task[task.find('_')+1:], numOfSegs[id])
