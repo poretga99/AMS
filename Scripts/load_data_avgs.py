@@ -76,7 +76,7 @@ def createAverageMasks(srcs, SOURCE, IZZIV, TYPE, CASE):
         tmp = np.asarray(mask >= i + 1, np.float32)
         if len(tmp.shape) < 3:
             tmp.reshape(1, tmp.shape[0], tmp.shape[1])
-        oMasks.append(np.asarray(mask >= i + 1, np.float32))
+        oMasks.append(np.asarray(mask >= (i + 1), np.float32) + i)
         # returna maske, kjer je 0-ti element maska z najmanjšo gotovostjo, torej podrocja, kjer se je markiral zgolj en izmed oznacevalcev
     return oMasks
 
@@ -175,5 +175,5 @@ print()
 
 
 for id, task in enumerate(os.listdir('../Data/nnUNet')):
-    if task == "Task101_BRGR1":
-        generarateJSON(task, desc[id], '../Data/nnUNet/' + task, task[task.find('_')+1:], numOfSegs[id])
+    if task == "Task105_KD1":
+        generarateJSON(task, desc[id], '../Data/nnUNet/' + task, task[task.find('_')+1:], 3) # TODO: popravi
