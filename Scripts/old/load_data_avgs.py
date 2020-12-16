@@ -167,13 +167,13 @@ data_paths = {'brain-growth':{},
 izzivi = ['brain-growth', 'brain-tumor', 'kidney', 'prostate'] # izzivi
 numOfSegs = [7, 3, 3, 3, 3, 6, 6] # Stevilo segmentacij za posamezen task
 desc = ['brain-growth AMS', 'brain-tumor 1 AMS', 'brain-tumor 2 AMS', 'brain-tumor 3 AMS', 'kidney AMS', 'prostate 1 AMS', 'prostate 2 AMS'] # Opis taskov
-data = parseData(izzivi, '../Data/training_data_v2', 'Training', numOfSegs)
+data = parseData(izzivi, '../../Data/training_data_v2', 'Training', numOfSegs)
 print()
 #data = saveAverageMasks(data, '../data/training_data_v2', 'Training')
 #makeNNUnetStructure(data, '../Data/training_data_v2', '../Data/nnUNet', 'Training')
 
 
 
-for id, task in enumerate(os.listdir('../Data/nnUNet')):
+for id, task in enumerate(os.listdir('../../Data/nnUNet')):
     if task == "Task105_KD1":
         generarateJSON(task, desc[id], '../Data/nnUNet/' + task, task[task.find('_')+1:], 3) # TODO: popravi
