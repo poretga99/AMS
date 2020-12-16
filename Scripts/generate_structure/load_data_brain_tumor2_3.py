@@ -87,38 +87,40 @@ def verifyDimensions(iImage: np.ndarray):
 
 def makeNNUnetStructure(data, SOURCE, DEST, TYPE):
     mapNames = {'brain-growth': 'BRGR', 'brain-tumor': 'BRTU', 'kidney': 'KD1', 'prostate': 'PR'}
-    taskIdx = 200  # Custom datasets starting from 100
+    taskIdx = 201  # Custom datasets starting from 100
     for IZZIV in data.keys():
-        if IZZIV == 'kidney':
+        if IZZIV == 'brain-tumor':
             noOfTasks = 1
             for TASK in data[IZZIV][TYPE]['case01']['TASKS'].keys():  # Number of different organs
                 imageIdx = [1,1,1]
-                for CASE in data[IZZIV][TYPE].keys():
-                    srcImage = sitk.ReadImage(
-                        getPath(SOURCE, IZZIV, TYPE, CASE, 'image.nii.gz'))
-                    np_masks = createAverageMasks(data[IZZIV][TYPE][CASE]['TASKS'][TASK], SOURCE, IZZIV, TYPE, CASE)
-                    for SEGMENTATION in range(len(data[IZZIV][TYPE][CASE]['TASKS'][TASK])):
-                        tmp = sitk.GetArrayFromImage(srcImage)
-                        if (len(tmp.shape) > 3) and tmp.shape[0] > 1:
-                            print("Error at image ", getPath(SOURCE, IZZIV, TYPE, CASE, 'image.nii.gz'))
-                        if len(tmp.shape) < 3:
-                            tmp = tmp.reshape(1, tmp.shape[0], tmp.shape[1])
-                        srcImage = sitk.GetImageFromArray(tmp)
-                        sitk.WriteImage(srcImage,
-                                        getPath(DEST, 'Task' + str(taskIdx + SEGMENTATION) + '_' + mapNames[IZZIV] + str(noOfTasks + SEGMENTATION),
-                                                'imagesTr', mapNames[IZZIV] + str(noOfTasks + SEGMENTATION) + '_' + parseIdxToString(
-                                                imageIdx[SEGMENTATION]) + '_0000.nii.gz'))
-                        tmp = np_masks[SEGMENTATION]
-                        if (len(tmp.shape) < 3):
-                            tmp = tmp.reshape(1, tmp.shape[0], tmp.shape[1])
-                        srcSeg = sitk.GetImageFromArray(tmp)
-                        sitk.WriteImage(srcSeg,
-                                        getPath(DEST, 'Task' + str(taskIdx + SEGMENTATION) + '_' + mapNames[IZZIV] + str(SEGMENTATION+1),
-                                                'labelsTr', mapNames[IZZIV] + str(noOfTasks + SEGMENTATION) + '_' + parseIdxToString(
-                                                imageIdx[SEGMENTATION]) + '.nii.gz'))
-                        imageIdx[SEGMENTATION] += 1
+                if TASK != 'TASK01':
+                    for CASE in data[IZZIV][TYPE].keys():
+                        srcImage = sitk.ReadImage(
+                            getPath(SOURCE, IZZIV, TYPE, CASE, 'image.nii.gz'))
+                        np_masks = createAverageMasks(data[IZZIV][TYPE][CASE]['TASKS'][TASK], SOURCE, IZZIV, TYPE, CASE)
+                        for SEGMENTATION in range(len(data[IZZIV][TYPE][CASE]['TASKS'][TASK])):
+                            tmp1 = sitk.GetArrayFromImage(srcImage)
+                            #if (len(tmp.shape) > 3) and tmp.shape[0] > 1:
+                            #    print("Error at image ", getPath(SOURCE, IZZIV, TYPE, CASE, 'image.nii.gz'))
+                            #if len(tmp.shape) < 3:
+                            #    tmp = tmp.reshape(1, tmp.shape[0], tmp.shape[1])
+                            for i in range(4):
+                                srcImage2 = sitk.GetImageFromArray(tmp1[i,:,:].reshape(1,tmp1.shape[1],tmp1.shape[2]))
+                                sitk.WriteImage(srcImage2,
+                                                getPath(DEST, 'Task' + str(taskIdx + SEGMENTATION) + '_' + mapNames[IZZIV] + str(noOfTasks) + str(SEGMENTATION+1),
+                                                        'imagesTr', mapNames[IZZIV] + str(noOfTasks) + str(SEGMENTATION+1) + '_' + parseIdxToString(
+                                                        imageIdx[SEGMENTATION]) + '_000'+str(i)+'.nii.gz'))
+                            tmp = np_masks[SEGMENTATION]
+                            if (len(tmp.shape) < 3):
+                                tmp = tmp.reshape(1, tmp.shape[0], tmp.shape[1])
+                            srcSeg = sitk.GetImageFromArray(tmp)
+                            sitk.WriteImage(srcSeg,
+                                            getPath(DEST, 'Task' + str(taskIdx + SEGMENTATION) + '_' + mapNames[IZZIV] + str(noOfTasks) + str(SEGMENTATION+1),
+                                                    'labelsTr', mapNames[IZZIV] + str(noOfTasks) + str(SEGMENTATION+1) + '_' + parseIdxToString(
+                                                    imageIdx[SEGMENTATION]) + '.nii.gz'))
+                            imageIdx[SEGMENTATION] += 1
+                    taskIdx += 3
                 noOfTasks += 1
-                taskIdx += 1
 
 def generarateJSON(task_name, desc, TASK_SOURCE):
     overwrite_json_file = True  # make it True if you want to overwrite the dataset.json file in Task_folder
@@ -133,7 +135,10 @@ def generarateJSON(task_name, desc, TASK_SOURCE):
 
     # you may mention more than one modality
     json_dict['modality'] = {
-        "0": "MRI"
+        "0": "MRI",
+        "1": "MRI2",
+        "2": "MRI3",
+        "3": "MRI4"
     }
     # labels+1 should be mentioned for all the labels in the dataset
 
@@ -146,11 +151,13 @@ def generarateJSON(task_name, desc, TASK_SOURCE):
     test_dir = TASK_SOURCE + '/imagesTs'
     train_ids = os.listdir(train_label_dir)
     test_ids = os.listdir(test_dir)
-    json_dict['numTraining'] = len(train_ids)
-    json_dict['numTest'] = len(test_ids)
+    json_dict['numTraining'] = int(len(train_ids)/4)
+    json_dict['numTest'] = int(len(test_ids)/4)
 
     # no modality in train image and labels in dataset.json
-    json_dict['training'] = [{'image': "./imagesTr/%s.nii.gz" % i[:i.find('_0000')], "label": "./labelsTr/%s.nii.gz" % i[:i.find('_0000')]} for i in train_ids]
+    tmp = [i[:-12] for i in train_ids]
+    train_ids = np.unique(np.array(tmp)).tolist()
+    json_dict['training'] = [{'image': "./imagesTr/%s.nii.gz" % i, "label": "./labelsTr/%s.nii.gz" % i} for i in train_ids]
 
     # removing the modality from test image name to be saved in dataset.json
     json_dict['test'] = ["./imagesTs/%s" % i for i in test_ids]
@@ -170,13 +177,16 @@ desc = ['brain-growth AMS', 'brain-tumor 1 AMS', 'brain-tumor 2 AMS', 'brain-tum
 data = parseData(izzivi, '../../Data/training_data_v2', 'Training', numOfSegs)
 print()
 #data = saveAverageMasks(data, '../data/training_data_v2', 'Training')
-makeNNUnetStructure(data, '../Data/training_data_v2', '../Data/nnUNet/multiple_masks/kidney', 'Training')
+makeNNUnetStructure(data, '../../Data/training_data_v2', '../../Data/multiple_masks/brain-tumor', 'Training')
 
 
 
 #for id, task in enumerate(os.listdir('../Data/nnUNet')):
 #    if task == "Task105_KD1":
 #        generarateJSON(task, desc[id], '../Data/nnUNet/' + task, task[task.find('_')+1:], 3) # TODO: popravi
-generarateJSON('KD11', 'Kidney11', '../Data/nnUNet/multiple_masks/kidney/Task200_KD11')
-generarateJSON('KD12', 'Kidney12', '../Data/nnUNet/multiple_masks/kidney/Task201_KD12')
-generarateJSON('KD13', 'Kidney13', '../Data/nnUNet/multiple_masks/kidney/Task202_KD13')
+generarateJSON('BRTU21', 'BRTU21', '../../Data/multiple_masks/brain-tumor/Task201_BRTU21')
+generarateJSON('BRTU22', 'BRTU22', '../../Data/multiple_masks/brain-tumor/Task202_BRTU22')
+generarateJSON('BRTU23', 'BRTU23', '../../Data/multiple_masks/brain-tumor/Task203_BRTU23')
+generarateJSON('BRTU31', 'BRTU31', '../../Data/multiple_masks/brain-tumor/Task204_BRTU31')
+generarateJSON('BRTU32', 'BRTU32', '../../Data/multiple_masks/brain-tumor/Task205_BRTU32')
+generarateJSON('BRTU33', 'BRTU33', '../../Data/multiple_masks/brain-tumor/Task206_BRTU33')
