@@ -92,7 +92,7 @@ def makeNNUnetStructure(data, SOURCE, DEST, TYPE):
                         getPath(SOURCE, IZZIV, TYPE, CASE, 'image.nii.gz'))
                     np_masks = createAverageMasks(data[IZZIV][TYPE][CASE]['TASKS'][TASK], SOURCE, IZZIV, TYPE, CASE)
                     tmp = sitk.GetArrayFromImage(srcImage)
-                    for i in range(3):
+                    for i in range(4):
                         srcImage = sitk.GetImageFromArray(tmp[i, :, :].reshape(1, tmp.shape[1], tmp.shape[2]))
                         sitk.WriteImage(srcImage,
                                         getPath(DEST, 'Task' + str(taskIdx) + '_' + mapNames[IZZIV] + str(noOfTasks),
@@ -125,7 +125,8 @@ def generarateJSON(task_name, desc, TASK_SOURCE, LABEL, numOfSegs):
     json_dict['modality'] = {
         "0": "MRI",
         "1": "MRI2",
-        "2": "MRI3"
+        "2": "MRI3",
+        "3": "MRI4"
     }
     # labels+1 should be mentioned for all the labels in the dataset
 
@@ -139,14 +140,19 @@ def generarateJSON(task_name, desc, TASK_SOURCE, LABEL, numOfSegs):
     test_dir = TASK_SOURCE + '/imagesTs'
     train_ids = os.listdir(train_label_dir)
     test_ids = os.listdir(test_dir)
-    json_dict['numTraining'] = len(train_ids)
-    json_dict['numTest'] = len(test_ids)
+    json_dict['numTraining'] = int(len(train_ids) / 4)
+    json_dict['numTest'] = int(len(test_ids) / 4)
 
     # no modality in train image and labels in dataset.json
-    json_dict['training'] = [{'image': "./imagesTr/%s.nii.gz" % i[:i.find('_0000')], "label": "./labelsTr/%s.nii.gz" % i[:i.find('_0000')]} for i in train_ids]
+    tmp = [i[:-12] for i in train_ids]
+    train_ids = np.unique(np.array(tmp)).tolist()
+    json_dict['training'] = [{'image': "./imagesTr/%s.nii.gz" % i, "label": "./labelsTr/%s.nii.gz" % i} for i in
+                             train_ids]
 
     # removing the modality from test image name to be saved in dataset.json
-    json_dict['test'] = ["./imagesTs/%s" % i for i in test_ids]
+    tmp = [i[:-12] for i in test_ids]
+    test_ids = np.unique(np.array(tmp)).tolist()
+    json_dict['test'] = ["./imagesTs/%s.nii.gz" % i for i in test_ids]
 
     with open(os.path.join(TASK_SOURCE, "dataset.json"), 'w') as f:
         json.dump(json_dict, f, indent=4, sort_keys=True)
@@ -161,13 +167,13 @@ izzivi = ['brain-growth', 'brain-tumor', 'kidney', 'prostate'] # izzivi
 numOfSegs = [7, 3, 3, 3, 3, 6, 6] # Stevilo segmentacij za posamezen task
 desc = ['brain-growth AMS', 'brain-tumor 1 AMS', 'brain-tumor 2 AMS', 'brain-tumor 3 AMS', 'kidney AMS', 'prostate 1 AMS', 'prostate 2 AMS'] # Opis taskov
 data = parseData(izzivi, '../../Data/training_data_v2', 'Training', numOfSegs)
-makeNNUnetStructure(data, '../../Data/training_data_v2', '../../Data/nnUNet', 'Training')
+#makeNNUnetStructure(data, '../../Data/training_data_v2', '../../Data/nnUNet', 'Training')
 
 
 
-#for id, task in enumerate(os.listdir('../Data/nnUNet')):
-#    if task == "Task107_PR2":
-#        generarateJSON(task, desc[id], '../Data/nnUNet/' + task, task[task.find('_')+1:], 6) # TODO: popravi
+for id, task in enumerate(os.listdir('../../Data/nnUNet')):
+    if task == "Task102_BRTU1" or task == "Task103_BRTU2" or task == "Task104_BRTU3":
+        generarateJSON(task, "brtu" + str(id), '../../Data/nnUNet/' + task, task[task.find('_')+1:], 3) # TODO: popravi
 #for id, task in enumerate(os.listdir('../Data/nnUNet')):
 #    generarateJSON(task, desc[id], '../Data/nnUNet/' + task, task[task.find('_')+1:], numOfSegs[id])
 

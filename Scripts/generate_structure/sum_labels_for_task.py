@@ -169,7 +169,7 @@ print()
 
 for id, task in enumerate(os.listdir('../../Data/nnUNet')):
     if task == "Task101_BRGR1":
-        generarateJSON(task, desc[id], '../../Data/nnUNet/' + task, task[task.find('_')+1:], 7) # TODO: popravi
+        generarateJSON(task, task, '../../Data/nnUNet/' + task, task[task.find('_')+1:], 7) # TODO: popravi
 #for id, task in enumerate(os.listdir('../Data/nnUNet')):
 #    generarateJSON(task, desc[id], '../Data/nnUNet/' + task, task[task.find('_')+1:], numOfSegs[id])
 
